@@ -277,6 +277,13 @@ body.locked .bar{display:none}
 .thumbs figure{margin:0}.thumbs img,.thumbs .fileic{width:100%;aspect-ratio:4/5;object-fit:cover;border-radius:6px;border:1px solid var(--line);background:#f4f4f4;display:grid;place-items:center;font-weight:800;color:var(--gray)}
 .thumbs figcaption{font-size:11px;color:#6F665F;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 a.tbtn{text-decoration:none;display:inline-flex;align-items:center}
+.warnhint{background:var(--warn-soft);border-radius:6px;padding:8px 10px;color:var(--warn)!important}
+.inlineform{padding:0 18px 18px}
+.inlineform .edit{margin:0}
+.pwrap{position:relative}
+.pwrap input{padding-right:70px}
+.pshow{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:0;font:700 13px var(--sans);color:var(--cyan-ink);padding:6px 8px;cursor:pointer}
+.pshow:focus-visible{outline:2px solid var(--cyan);border-radius:4px}
 </style>
 </head>
 <body>
@@ -290,7 +297,7 @@ a.tbtn{text-decoration:none;display:inline-flex;align-items:center}
     <h1>Sign in</h1>
     <p class="intro">Use the user ID and password shared with your team.</p>
     <label for="luser">User ID</label><input id="luser" type="text" autocomplete="username" autocapitalize="none" spellcheck="false">
-    <label for="lpass">Password</label><input id="lpass" type="password" autocomplete="current-password">
+    <label for="lpass">Password</label><div class="pwrap"><input id="lpass" type="password" autocomplete="current-password"><button type="button" id="lshow" class="pshow" aria-pressed="false" aria-controls="lpass">Show</button></div>
     <button type="button" class="primary big" id="lgo">Sign in</button>
     <p class="lerr" id="lerr" aria-live="polite"></p>
   </div>
@@ -336,7 +343,8 @@ const tab = {};           // "<view>:<id>" -> platform key
 let month = (() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); })();
 // Sign-in state (token from the Sheet script; passwords never live in this page)
 let token = "", role = "", users = [];
-let teamOpen = null;      // id being edited, or "new"
+let teamOpen = null;
+let ideaEditOpen = null;   // id of an idea TSL is editing from the Ideas tab      // id being edited, or "new"
 let who = "";
 try { token = localStorage.getItem("ipa-token") || ""; role = localStorage.getItem("ipa-role") || ""; users = JSON.parse(localStorage.getItem("ipa-users") || "[]"); who = localStorage.getItem("ipa-who-" + role) || ""; } catch (e) {}
 const store = (k, v) => { try { v === null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} };
@@ -565,7 +573,8 @@ function ideaCard(p){
     el("span", {class:"pid", text:p.id})));
   a.append(el("h2", {text:p.title}));
   if (st === "Skipped") {
-    const b = el("button", {type:"button", class:"more", text:"Undo skip"}); b.addEventListener("click", () => decideIdea(p, "clear")); a.append(b); return a;
+    if (isIPA()) { const b = el("button", {type:"button", class:"more", text:"Undo skip"}); b.addEventListener("click", () => decideIdea(p, "clear")); a.append(b); return a; }
+    if (!isTSL()) return a;
   }
   const done = parts.filter(([k]) => partOK(p["ok_" + k])).length;
   a.append(el("p", {class:"partsum", text: done + " of " + parts.length + " parts approved"}));
@@ -595,7 +604,16 @@ function ideaCard(p){
     a.append(sec);
   });
   const foot = el("div", {class:"pfoot"});
-  if (!isIPA()) { a.append(foot); return a; }
+  if (!isIPA()) {
+    if (isTSL()) {
+      const eb = el("button", {type:"button", class:"linkbtn", text: ideaEditOpen === p.id ? "Close editor" : "Edit idea"});
+      eb.addEventListener("click", () => { ideaEditOpen = ideaEditOpen === p.id ? null : p.id; render(); });
+      foot.append(eb);
+    }
+    a.append(foot);
+    if (ideaEditOpen === p.id) a.append(el("div", {class:"inlineform"}, ideaForm(p)));
+    return a;
+  }
   if (done < parts.length) { const all = el("button", {type:"button", class:"linkbtn", text:"Approve everything as is"}); all.addEventListener("click", () => decideIdea(p, "approve")); foot.append(all); }
   const sk = el("button", {type:"button", class:"linkbtn muted", text:"Skip this post"}); sk.addEventListener("click", () => decideIdea(p, "skip")); foot.append(sk);
   a.append(foot);
@@ -832,6 +850,12 @@ function ideaForm(p){
   const box = el("div", {class:"edit team"});
   box.append(el("h3", {text: isNew ? "New idea" : "Idea: " + p.title}),
     el("p", {class:"hint", text:"Drafts stay inside TSL. “Send to IPA” puts the idea on IPA's Ideas tab. Every number needs a source link."}));
+  if (!isNew) {
+    const notes = ["idea","instagram","linkedin","x"].filter(k => p["note_" + k]).map(k => (k === "x" ? "X reply" : k[0].toUpperCase() + k.slice(1)) + ": " + p["note_" + k]);
+    if (notes.length) box.append(el("p", {class:"checkline"}, el("b", {text:"IPA asked: "}), notes.join(" | ")));
+    const decided = ["idea","instagram","linkedin","x"].some(k => partOK(p["ok_" + k]));
+    if (decided) box.append(el("p", {class:"hint warnhint", text:"IPA has already approved parts of this idea. Only the parts you change go back to IPA; the rest stay approved."}));
+  }
   const f = {};
   const add = (key, label, node) => { box.append(el("label", {for:node.id, text:label}), node); f[key] = node; return node; };
   const sel = (id, opts, val) => { const s = el("select", {id}); opts.forEach(o => s.append(el("option", {text:o, selected: o === val ? true : null}))); return s; };
@@ -846,12 +870,12 @@ function ideaForm(p){
   add("big", "Headline figure (optional, e.g. 60%)", el("input", {id:"i-big-" + sfx, type:"text", value:p.big || ""}));
   add("fact", "The fact or point (1 to 2 sentences). For X: what the original post says", ta("i-fact-" + sfx, 2, p.fact));
   add("sources", "Sources, one per line as: Name | https://link", ta("i-src-" + sfx, 2, p.sources, "Central Ground Water Board 2024 | https://..."));
-  add("hook", "Opening line. For X: IPA's post (max 280)", ta("i-hook-" + sfx, 2, p.hook));
+  add("hook", "Opening line. For X: IPA's post (max 280)", ta("i-hook-" + sfx, 2, cur(p, "hook")));
   add("flow", "How it flows, one step per line (optional)", ta("i-flow-" + sfx, 4, p.flow));
   add("why", "Why this post (optional)", el("input", {id:"i-why-" + sfx, type:"text", value:p.why || ""}));
   add("check", "Anything IPA should confirm? (optional)", el("input", {id:"i-check-" + sfx, type:"text", value:p.check || ""}));
   const more = el("details", {}, el("summary", {text:"Full post (optional): script and captions"}));
-  const mk = (key, label, rows) => { const n = ta("i-" + key + "-" + sfx, rows, p[key]); more.append(el("label", {for:n.id, text:label}), n); f[key] = n; };
+  const mk = (key, label, rows) => { const n = ta("i-" + key + "-" + sfx, rows, cur(p, key)); more.append(el("label", {for:n.id, text:label}), n); f[key] = n; };
   mk("ig_script", "Slides / scenes, one per line (e.g. S1: ..., S2: ...)", 6); mk("ig_caption", "Instagram caption", 4); mk("li_post", "LinkedIn post", 5);
   box.append(more);
   const err = el("div", {class:"err", "aria-live":"polite"});
@@ -869,16 +893,60 @@ function ideaForm(p){
     const e = validate(toIPA); if (e) { err.textContent = e; return; }
     flash("Saving…");
     try { const j = await api({action:"team_save", id: isNew ? "" : p.id, data: {...data(), ...extra}, member:who});
-      teamOpen = null; flash(label + (j.id ? " (" + j.id + ")" : "")); load(true); }
+      teamOpen = null; ideaEditOpen = null; flash(label + (j.id ? " (" + j.id + ")" : "")); load(true); }
     catch (x) { err.textContent = x.message === "wrong code" ? "Passcode expired. Log in again." : "Couldn't save. Try again."; }
   };
   const row = el("div", {class:"row"});
   const btn = (text, cls, fn) => { const b = el("button", {type:"button", class:cls || "", text}); b.addEventListener("click", fn); row.append(b); };
   if (isNew) { btn("Save as draft", "", () => go({mode:"draft"}, false, "Draft saved")); btn("Send to IPA", "primary", () => go({mode:"ipa"}, true, "Sent to IPA")); }
   else if (p.Status === "Draft") { btn("Save draft", "", () => go({}, false, "Draft saved")); btn("Send to IPA", "primary", () => go({send_to_ipa:true}, true, "Sent to IPA")); }
-  else { btn("Save", "primary", () => go({}, true, "Saved")); btn("Pull back to draft", "", () => go({back_to_draft:true}, false, "Moved back to drafts")); }
-  btn("Cancel", "", () => { teamOpen = null; render(); });
+  else {
+    btn("Save changes", "primary", () => go({}, true, "Saved. Changed parts are back with IPA"));
+    const untouched = !p.Status && !["idea","instagram","linkedin","x"].some(k => p["ok_" + k]);
+    if (p.batch === "Team" && untouched) btn("Pull back to draft", "", () => go({back_to_draft:true}, false, "Moved back to drafts"));
+  }
+  btn("Cancel", "", () => { teamOpen = null; ideaEditOpen = null; render(); });
   box.append(row, err);
+  return box;
+}
+
+// Team submits a rough idea in plain English + links; Claude writes the full post and sends it to IPA.
+function briefForm(p){
+  const isNew = !p; p = p || {};
+  const box = el("div", {class:"edit team"});
+  box.append(el("h3", {text: isNew ? "Submit an idea for Claude" : "Idea for Claude: " + p.title}),
+    el("p", {class:"hint", text:"Write it in plain English, like a message to a colleague. Paste every link or source you have. Claude writes the full post (captions, slides, LinkedIn, X), checks the facts and sends it to IPA. If something is missing, it comes back here with a question."}));
+  if (p.claude_status === "Needs info" && p.claude_note) box.append(el("p", {class:"checkline"}, el("b", {text:"Claude asks: "}), p.claude_note));
+  const sfx = p.id || "new";
+  const title = el("input", {id:"b-title-" + sfx, type:"text", value:p.title || "", placeholder:"A short name, e.g. Why geysers burst in winter"});
+  const two = el("div", {class:"two"});
+  const aud = el("select", {id:"b-aud-" + sfx}); ["Let Claude decide","New Audience","Expert & Member","IPA news","Event (IPC / Plumbex)","X commentary"].forEach(o => aud.append(el("option", {text:o, selected: o === p.audience ? true : null})));
+  const fmt = el("select", {id:"b-fmt-" + sfx}); ["Let Claude decide","Carousel","Reel","Static","Text only"].forEach(o => fmt.append(el("option", {text:o, selected: o === p.format ? true : null})));
+  two.append(el("div", {}, el("label", {for:aud.id, text:"Who it's for"}), aud), el("div", {}, el("label", {for:fmt.id, text:"Format"}), fmt));
+  const body = el("textarea", {id:"b-brief-" + sfx, rows:"6", placeholder:"What should the post say and why? e.g. Lots of geysers burst in north India every winter. Explain why (pressure build-up, faulty valves), what the BIS standard says, and 3 things families can check. Make it useful for the public, not scary."});
+  body.value = p.brief || "";
+  const links = el("textarea", {id:"b-links-" + sfx, rows:"4", placeholder:"One link per line: articles, reports, standards, X posts, Drive files…"});
+  links.value = p.brief_links || "";
+  box.append(el("label", {for:title.id, text:"Name of the idea"}), title, two, el("label", {for:body.id, text:"The idea, in your words"}), body,
+    el("label", {for:links.id, text:"Links and sources (as many as you like)"}), links);
+  const err = el("div", {class:"err", "aria-live":"polite"});
+  const send = el("button", {type:"button", class:"primary", text: isNew ? "Submit for Claude" : "Update and resubmit"});
+  const cancel = el("button", {type:"button", text:"Cancel"});
+  send.addEventListener("click", async () => {
+    if (needName()) return;
+    if (!title.value.trim()) { err.textContent = "Give the idea a short name."; return; }
+    if (body.value.trim().length < 25) { err.textContent = "Tell Claude a little more about the idea."; return; }
+    const bad = lines(links.value).filter(u => !safeUrl(u));
+    if (bad.length) { err.textContent = "These don't look like links: " + bad.slice(0, 2).join(", "); return; }
+    const data = {title:title.value.trim(), audience:aud.value, format:fmt.value, brief:body.value.trim(), brief_links:lines(links.value).join("\n"),
+      claude_status:"Waiting for Claude", claude_note:""};
+    if (isNew) data.mode = "draft";
+    send.disabled = true; flash("Submitting…");
+    try { await api({action:"team_save", id: isNew ? "" : p.id, data, member:who}); teamOpen = null; flash("Submitted. Claude will write it up"); load(true); }
+    catch (x) { send.disabled = false; err.textContent = "Couldn't submit. Try again."; }
+  });
+  cancel.addEventListener("click", () => { teamOpen = null; render(); });
+  box.append(el("div", {class:"row"}, send, cancel), err);
   return box;
 }
 
@@ -1013,15 +1081,21 @@ function teamView(){
     out.append(el("div", {class:"edit"}, el("h3", {text:"For The Strategy Lab team"}), el("p", {class:"hint", text:"Add creatives, captions, dates and live links. IPA sees them under Creatives and Calendar."}), inp, el("div", {class:"row"}, go)));
     return out;
   }
-  const ideaBtn = el("button", {type:"button", class:"primary big", text:"+ New idea"});
+  const briefBtn = el("button", {type:"button", class:"primary big", text:"+ Submit an idea for Claude"});
+  briefBtn.addEventListener("click", () => { teamOpen = "newbrief"; render(); });
+  const ideaBtn = el("button", {type:"button", class:"primary big alt", text:"+ Write a full idea yourself"});
   ideaBtn.addEventListener("click", () => { teamOpen = "newidea"; render(); });
   const newBtn = el("button", {type:"button", class:"primary big alt", text:"+ New post (skip idea approval)"});
   newBtn.addEventListener("click", () => { teamOpen = "new"; render(); });
-  out.append(el("div", {class:"row"}, ideaBtn, newBtn));
+  out.append(el("div", {class:"row"}, briefBtn, ideaBtn, newBtn));
+  if (teamOpen === "newbrief") out.append(briefForm(null));
   if (teamOpen === "newidea") out.append(ideaForm(null));
   if (teamOpen === "new") out.append(teamForm(null));
   const ideaGroups = [
-    ["Team drafts (IPA can't see these)", p => p.Status === "Draft"],
+    ["Claude needs more info", p => p.Status === "Draft" && p.claude_status === "Needs info"],
+    ["Waiting for Claude", p => p.Status === "Draft" && p.claude_status === "Waiting for Claude"],
+    ["IPA asked for changes on ideas", p => p.stage === "Idea changes"],
+    ["Team drafts (IPA can't see these)", p => p.Status === "Draft" && !["Waiting for Claude","Needs info"].includes(p.claude_status)],
     ["Team ideas waiting for IPA", p => p.batch === "Team" && !p.Status]];
   ideaGroups.forEach(([label, fn]) => {
     const items = POSTS.filter(fn);
@@ -1030,8 +1104,9 @@ function teamView(){
     items.forEach(p => {
       const b = el("button", {type:"button", class:"tbtn", text: teamOpen === "idea:" + p.id ? "Close" : "Open"});
       b.addEventListener("click", () => { teamOpen = teamOpen === "idea:" + p.id ? null : "idea:" + p.id; render(); });
-      out.append(el("div", {class:"trow"}, stageTag(p), el("span", {class:"tt", text:p.id + " · " + p.title}), el("span", {class:"td", text:p.team_member || ""}), b));
-      if (teamOpen === "idea:" + p.id) out.append(ideaForm(p));
+      out.append(el("div", {class:"trow"}, p.claude_status && p.Status === "Draft" ? el("span", {class:"stage " + (p.claude_status === "Needs info" ? "s-warn" : "s-sched"), text:p.claude_status}) : stageTag(p),
+        el("span", {class:"tt", text:p.id + " · " + p.title}), el("span", {class:"td", text:p.team_member || ""}), b));
+      if (teamOpen === "idea:" + p.id) out.append(p.Status === "Draft" && p.claude_status && p.claude_status !== "Written by Claude" ? briefForm(p) : ideaForm(p));
     });
   });
   const groups = [
@@ -1067,7 +1142,7 @@ const COPY = {
 function visibleIdeas(){
   const f = filters.ideas, pf = pfilter.ideas;
   return POSTS.filter(ipaIdea).filter(p => {
-    if (open["ideas:" + p.id]) return true;
+    if (open["ideas:" + p.id] || ideaEditOpen === p.id) return true;
     if (pf !== "all" && !postPlats(p).includes(pf)) return false;
     if (f === "todo") return !p.Status;
     if (f === "approved") return p.Status === "Approved" || p.Status === "Approved with edits";
@@ -1174,12 +1249,19 @@ async function doLogin(){
     token = j.token; role = j.role; users = j.users || [];
     store("ipa-token", token); store("ipa-role", role); store("ipa-users", JSON.stringify(users));
     who = ""; try { who = localStorage.getItem("ipa-who-" + role) || ""; } catch (e) {}
-    $("lpass").value = "";
+    $("lpass").value = ""; $("lpass").type = "password"; $("lshow").textContent = "Show"; $("lshow").setAttribute("aria-pressed", "false");
     startApp();
   } catch (e) { $("lerr").textContent = "Couldn't reach the server. Check your internet and try again."; }
   finally { $("lgo").disabled = false; }
 }
 $("lgo").addEventListener("click", doLogin);
+$("lshow").addEventListener("click", () => {
+  const i = $("lpass"), on = i.type === "password";
+  i.type = on ? "text" : "password";
+  $("lshow").textContent = on ? "Hide" : "Show";
+  $("lshow").setAttribute("aria-pressed", String(on));
+  i.focus();
+});
 $("lpass").addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
 $("luser").addEventListener("keydown", e => { if (e.key === "Enter") $("lpass").focus(); });
 $("signout").addEventListener("click", () => signOut(""));
