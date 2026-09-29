@@ -93,6 +93,47 @@ summary{cursor:pointer;font-weight:700;color:var(--cyan-ink);font-size:14px}
 .bar .msg{font-size:14px;font-weight:600;min-height:1.4em;margin:0}
 footer{max-width:780px;margin:34px auto 0;padding-inline:16px;font-size:12px;color:var(--gray)}
 @media (prefers-reduced-motion:reduce){.track i{transition:none}}
+
+/* v2: lighter cards + editing */
+article{border-radius:10px}
+.top{padding:14px 18px 0}
+h2{margin:8px 18px 12px;font-size:clamp(19px,3.8vw,23px)}
+.fact{margin:0 18px;padding:14px 16px;gap:4px 16px}
+.big{font-size:clamp(26px,6vw,36px)}
+.fact p{font-size:14.5px;line-height:1.5}
+.src{font-size:12.5px;padding-top:8px;margin-top:6px}
+.hookline{margin:14px 18px 0;font-weight:600;font-size:17px;line-height:1.45;padding-left:12px;border-left:3px solid var(--cyan)}
+.flowline{margin:10px 18px 0;font-size:13px;color:#6F665F}
+.flowline b{color:var(--gray);font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:11px;margin-right:6px}
+.checkline{margin:12px 18px 0;font-size:13px;background:var(--warn-soft);border-radius:6px;padding:8px 12px}
+.checkline b{color:var(--warn)}
+.act{padding:16px 18px 6px}
+.more{display:block;margin:0 18px 16px;background:none;border:0;padding:6px 0;font:700 13px var(--sans);color:var(--cyan-ink);cursor:pointer}
+.panel{margin:0 18px 18px;border-top:1px dashed var(--line);padding-top:12px}
+.tabs{display:flex;gap:6px;margin-bottom:12px}
+.tabs button{font:600 13px var(--sans);border:1px solid var(--line);background:var(--paper);color:var(--brown);border-radius:999px;padding:5px 13px;cursor:pointer}
+.tabs button[aria-pressed="true"]{background:var(--brown);color:#fff;border-color:var(--brown)}
+.why2{font-size:13.5px;color:#4A403A;margin:0 0 12px}
+.why2 b{color:var(--brown)}
+ol.slides{margin:0;padding:0;list-style:none;display:grid;gap:6px}
+ol.slides li{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:baseline;font-size:14px;line-height:1.5;background:var(--ground);border-radius:6px;padding:8px 10px}
+ol.slides li span{font-weight:800;font-size:11px;color:var(--cyan-ink);white-space:nowrap}
+.cap{white-space:pre-wrap;font-size:14px;line-height:1.55;background:var(--ground);border-radius:6px;padding:10px 12px;margin:0}
+.sub{font-weight:700;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--gray);margin:14px 0 6px}
+.edit{margin:4px 18px 18px;background:#FFFBEF;border:1px solid #F0DDA2;border-radius:8px;padding:14px}
+.edit h3{margin:0 0 4px;font-size:15px;color:var(--brown)}
+.edit p.hint{margin:0 0 10px;font-size:13px;color:#6F665F}
+.edit label{display:block;font-weight:700;font-size:12px;color:var(--brown);margin:12px 0 4px}
+.edit textarea{width:100%;font:14px/1.5 var(--sans);border:1px solid var(--line);border-radius:6px;padding:9px 10px;background:#fff;color:var(--ink);resize:vertical}
+.edit textarea:focus{outline:2px solid var(--cyan);border-color:var(--cyan)}
+.edit .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.edit .row button{font:700 14px var(--sans);padding:10px 16px;border-radius:6px;cursor:pointer;border:1.5px solid var(--line);background:#fff;color:var(--brown)}
+.edit .row .primary{background:var(--brown);border-color:var(--brown);color:#fff}
+.edit .err{color:#A33;font-size:13px;font-weight:600;min-height:1.2em;margin-top:6px}
+.tag.status.edited{background:#DDF5FC;color:#12708A}
+.tag.status.change{background:var(--warn-soft);color:var(--warn)}
+.tag.status.skip{background:var(--skip-soft);color:var(--skip)}
+article.done-edit{border-top-color:#1B8FB0}
 </style>
 </head>
 <body>
@@ -105,7 +146,7 @@ footer{max-width:780px;margin:34px auto 0;padding-inline:16px;font-size:12px;col
     <div class="eyebrow">Indian Plumbing Association · Social media posts</div>
     <h1>Post ideas, ready for your yes</h1>
     <p class="intro">Each card shows the idea, the fact behind it and where that fact comes from, the opening line, and how the post flows. Tap a source link to check it yourself. Your choice saves as soon as you tap.</p>
-    <div class="how"><span><b>1</b> Read the card</span><span><b>2</b> Tap Approve, Change or Skip</span><span><b>3</b> Done. It saves instantly</span></div>
+    <div class="how"><span><b>1</b> Read the card</span><span><b>2</b> Approve, edit or skip</span><span><b>3</b> Done. It saves instantly</span></div>
     <div class="who"><label for="reviewer">Your name</label><input id="reviewer" type="text" placeholder="So we know who reviewed" autocomplete="name"></div>
   </header>
   <hr class="rule">
@@ -129,11 +170,12 @@ footer{max-width:780px;margin:34px auto 0;padding-inline:16px;font-size:12px;col
 </div></div>
 
 <script>
-// Paste the Google Apps Script web-app URL here (ends in /exec).
 const API_URL = "https://script.google.com/macros/s/AKfycbx6WiOZhAggTn4jI5KxIOSC6tfU6ueqZPdH8vWKecWnrHdFEMPAL6LftOP6WoWtThHq2Q/exec";
 
 let POSTS = [];
 let filter = "todo";
+const open = {};      // id -> "view" | "edit"
+const tab = {};       // id -> "ig" | "li"
 let who = "";
 try { who = localStorage.getItem("ipa-reviewer") || ""; } catch (e) {}
 const nameEl = document.getElementById("reviewer");
@@ -142,7 +184,6 @@ nameEl.addEventListener("input", () => { who = nameEl.value; try { localStorage.
 
 const msg = document.getElementById("msg");
 function flash(t, bad){ msg.textContent = t; msg.style.color = bad ? "#FFD27A" : "var(--cyan)"; }
-
 function el(tag, attrs, ...kids){
   const n = document.createElement(tag);
   for (const k in (attrs||{})) { if (k === "class") n.className = attrs[k]; else if (k === "text") n.textContent = attrs[k]; else n.setAttribute(k, attrs[k]); }
@@ -150,70 +191,129 @@ function el(tag, attrs, ...kids){
   return n;
 }
 const lines = s => String(s || "").split("\n").map(x => x.trim()).filter(Boolean);
-const DEC = {approve:"Approved", change:"Change requested", skip:"Skipped"};
+const DEC = {approve:"Approved", edit:"Approved with edits", change:"Change requested", skip:"Skipped"};
+const STCLS = {"Approved":"", "Approved with edits":"edited", "Change requested":"change", "Skipped":"skip"};
+const CARDCLS = {"Approved":"done-approve", "Approved with edits":"done-edit", "Change requested":"done-change", "Skipped":"done-skip"};
 
-async function decide(p, decision, note){
-  const prev = {Status: p.Status, Note: p.Note};
+// Current text = IPA's edit if they made one, else our original
+const cur = (p, k) => (p["edit_" + k] || p[k] || "");
+
+function slides(script){
+  return lines(script).map(l => {
+    const m = l.match(/^(S\d+(?:\s*\(CTA\))?|Shot\s*\d+\s*\([^)]*\))\s*:\s*(.*)$/i);
+    return m ? [m[1].replace(/^S(\d+)/i, "Slide $1"), m[2]] : ["", l];
+  });
+}
+
+async function send(p, decision, note, edits){
+  const prev = {Status:p.Status, Note:p.Note, edit_hook:p.edit_hook, edit_ig_script:p.edit_ig_script, edit_ig_caption:p.edit_ig_caption, edit_li_post:p.edit_li_post};
   p.Status = decision === "clear" ? "" : DEC[decision];
-  if (note !== undefined) p.Note = note;
-  render(decision === "change" ? p.id : null);
+  p.Note = note || "";
+  const e = edits || {};
+  p.edit_hook = e.edit_hook || ""; p.edit_ig_script = e.edit_script || ""; p.edit_ig_caption = e.edit_ig_caption || ""; p.edit_li_post = e.edit_li_post || "";
+  open[p.id] = undefined;
+  render();
   flash("Saving…");
   try {
     const r = await fetch(API_URL, {method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"},
-      body: JSON.stringify({action:"decide", id:p.id, decision, note: p.Note || "", reviewer: who})});
+      body: JSON.stringify({action:"decide", id:p.id, decision, note: p.Note, reviewer: who, edits: e})});
     const j = await r.json();
     if (!j.ok) throw new Error(j.error);
-    flash("Saved");
-  } catch (e) {
+    flash(decision === "edit" ? "Saved with your edits" : "Saved");
+  } catch (err) {
     Object.assign(p, prev); render();
-    flash("Couldn't save. Check your internet and tap again.", true);
+    flash("Couldn't save. Check your internet and try again.", true);
   }
+}
+
+function viewPanel(p){
+  const t = tab[p.id] || "ig";
+  const tabs = el("div", {class:"tabs", role:"group", "aria-label":"Platform"});
+  [["ig","Instagram"],["li","LinkedIn"]].forEach(([k, label]) => {
+    const b = el("button", {type:"button", "aria-pressed": String(t === k), text: label});
+    b.addEventListener("click", () => { tab[p.id] = k; render(); });
+    tabs.append(b);
+  });
+  const panel = el("div", {class:"panel"}, tabs);
+  if (p.why) { const w = el("p", {class:"why2"}, el("b", {text:"Why this post: "})); w.append(document.createTextNode(p.why)); panel.append(w); }
+  if (t === "ig") {
+    panel.append(el("div", {class:"sub", text: p.format === "Reel" ? "Scenes" : "Slides"}));
+    const ol = el("ol", {class:"slides"});
+    slides(cur(p, "ig_script")).forEach(([lab, txt]) => ol.append(el("li", {}, el("span", {text: lab || "•"}), document.createTextNode(txt))));
+    panel.append(ol, el("div", {class:"sub", text:"Caption"}), el("p", {class:"cap", text: cur(p, "ig_caption")}));
+  } else {
+    panel.append(el("div", {class:"sub", text:"LinkedIn post"}), el("p", {class:"cap", text: cur(p, "li_post")}));
+  }
+  return panel;
+}
+
+function editPanel(p){
+  const box = el("div", {class:"edit"});
+  box.append(el("h3", {text:"Edit anything below"}), el("p", {class:"hint", text:"Change the words directly, or just leave a note. We'll use your version."}));
+  const f = {};
+  [["hook","Opening line",2],["ig_script","What's on screen (slides / scenes)",8],["ig_caption","Instagram caption",6],["li_post","LinkedIn post",8]].forEach(([k, label, rows]) => {
+    const id = "e-" + k + "-" + p.id;
+    const ta = el("textarea", {id, rows: String(rows)}); ta.value = cur(p, k);
+    f[k] = ta;
+    box.append(el("label", {for:id, text:label}), ta);
+  });
+  const nid = "e-note-" + p.id;
+  const note = el("textarea", {id:nid, rows:"2", placeholder:"e.g. Please use a different example, or confirm this figure"}); note.value = p.Note || "";
+  box.append(el("label", {for:nid, text:"Anything else? (optional)"}), note);
+  const err = el("div", {class:"err", "aria-live":"polite"});
+  const save = el("button", {type:"button", class:"primary", text:"Save my changes"});
+  const cancel = el("button", {type:"button", text:"Cancel"});
+  save.addEventListener("click", () => {
+    const edits = {};
+    const keys = {hook:"edit_hook", ig_script:"edit_script", ig_caption:"edit_ig_caption", li_post:"edit_li_post"};
+    for (const k in f) { const v = f[k].value.trim(); if (v && v !== String(p[k] || "").trim()) edits[keys[k]] = v; }
+    const n = note.value.trim();
+    if (!Object.keys(edits).length && !n) { err.textContent = "Change some text or add a note first."; return; }
+    send(p, Object.keys(edits).length ? "edit" : "change", n, edits);
+  });
+  cancel.addEventListener("click", () => { open[p.id] = undefined; render(); });
+  box.append(el("div", {class:"row"}, save, cancel), err);
+  return box;
 }
 
 function card(p){
   const st = p.Status || "";
-  const cls = st === "Approved" ? "done-approve" : st === "Change requested" ? "done-change" : st === "Skipped" ? "done-skip" : "";
-  const a = el("article", {id: p.id, class: cls});
+  const a = el("article", {id: p.id, class: CARDCLS[st] || ""});
   const expert = String(p.audience).startsWith("Expert");
-  const top = el("div", {class:"top"},
+  a.append(el("div", {class:"top"},
     el("span", {class:"tag" + (expert ? " expert" : ""), text: expert ? "For professionals" : "For the public"}),
     el("span", {class:"tag plain", text: p.format}),
-    el("span", {class:"tag plain", text: p.series}),
-    st ? el("span", {class:"tag status", text: st + (p.Reviewer ? " · " + p.Reviewer : "")}) : null,
-    el("span", {class:"pid", text: p.id}));
-  const src = el("div", {class:"src"}, el("span", {text:"Where it's from:"}));
+    st ? el("span", {class:"tag status " + (STCLS[st] || ""), text: st + (p.Reviewer ? " · " + p.Reviewer : "")}) : null,
+    el("span", {class:"pid", text: p.id})));
+  a.append(el("h2", {text: p.title}));
+  const src = el("div", {class:"src"});
   lines(p.sources).forEach(l => {
     const [label, url] = l.split(" | ");
-    const s = el("span", {}, document.createTextNode(label + " · "));
+    const s = el("span", {}, document.createTextNode("Source: " + label + " · "));
     if (url) s.append(el("a", {href:url, target:"_blank", rel:"noopener", text:"click here"}));
     src.append(s);
   });
-  const fact = el("div", {class:"fact"}, el("div", {class:"big", text:p.big}), el("p", {text:p.fact}), src);
-  const flow = el("ol", {class:"flow"}); lines(p.flow).forEach(s => flow.append(el("li", {text:s})));
-  const full = el("details", {}, el("summary", {text:"See the full post (script and captions)"}),
-    el("div", {class:"full"},
-      el("div", {}, el("h4", {text:"Instagram: slides / shots"}), el("pre", {text:p.ig_script})),
-      el("div", {}, el("h4", {text:"Instagram caption"}), el("pre", {text:p.ig_caption})),
-      el("div", {}, el("h4", {text:"LinkedIn post"}), el("pre", {text:p.li_post}))));
+  a.append(el("div", {class:"fact"}, el("div", {class:"big", text: String(p.big)}), el("p", {text: p.fact}), src));
+  a.append(el("p", {class:"hookline", text: "“" + cur(p, "hook") + "”"}));
+  const fl = el("p", {class:"flowline"}, el("b", {text:"Flow"})); fl.append(document.createTextNode(lines(p.flow).join("  →  "))); a.append(fl);
+  if (p.check) { const c = el("p", {class:"checkline"}, el("b", {text:"Please check: "})); c.append(document.createTextNode(p.check)); a.append(c); }
+  if (p.Note && st) { const c = el("p", {class:"checkline"}, el("b", {text:"Your note: "})); c.append(document.createTextNode(p.Note)); a.append(c); }
+
   const act = el("div", {class:"act"});
-  [["approve","a","Approve"],["change","c","Change something"],["skip","s","Skip"]].forEach(([v,c,t]) => {
-    const on = st === DEC[v];
-    const b = el("button", {type:"button", class:c, "aria-pressed": String(on), text:t});
-    b.addEventListener("click", () => decide(p, on ? "clear" : v));
-    act.append(b);
-  });
-  a.append(top, el("h2", {text:p.title}), fact,
-    el("div", {class:"sec"}, el("div", {class:"label", text:"Why this post"}), el("p", {class:"why", text:p.why})),
-    el("div", {class:"sec"}, el("div", {class:"label", text:"Opening line"}), el("p", {class:"hook", text:"“" + p.hook + "”"})),
-    el("div", {class:"sec"}, el("div", {class:"label", text:"How it flows"}), flow));
-  if (p.check) { const c = el("div", {class:"check"}, el("b", {text:"Please check: "})); c.append(document.createTextNode(p.check)); a.append(c); }
-  a.append(full, act);
-  if (st === "Change requested") {
-    const t = el("textarea", {id:"note-" + p.id, placeholder:"What should we change?", "aria-label":"What should we change?"});
-    t.value = p.Note || "";
-    const save = el("button", {type:"button", class:"savenote", text:"Save note"});
-    save.addEventListener("click", () => decide(p, "change", t.value));
-    a.append(el("div", {class:"note"}, t, save));
+  const mk = (cls, label, pressed, fn) => { const b = el("button", {type:"button", class:cls, "aria-pressed": String(pressed), text: label}); b.addEventListener("click", fn); act.append(b); };
+  mk("a", "Approve", st === "Approved", () => send(p, st === "Approved" ? "clear" : "approve"));
+  mk("c", st === "Approved with edits" ? "Edit again" : "Change something", open[p.id] === "edit" || st === "Approved with edits" || st === "Change requested",
+     () => { open[p.id] = open[p.id] === "edit" ? undefined : "edit"; render(); const t = document.getElementById("e-hook-" + p.id); if (t) t.focus(); });
+  mk("s", "Skip", st === "Skipped", () => send(p, st === "Skipped" ? "clear" : "skip"));
+  a.append(act);
+
+  if (open[p.id] === "edit") a.append(editPanel(p));
+  else {
+    const more = el("button", {type:"button", class:"more", "aria-expanded": String(open[p.id] === "view"),
+      text: open[p.id] === "view" ? "Hide the full post ▴" : "See the full post ▾"});
+    more.addEventListener("click", () => { open[p.id] = open[p.id] === "view" ? undefined : "view"; render(); });
+    a.append(more);
+    if (open[p.id] === "view") a.append(viewPanel(p));
   }
   return a;
 }
@@ -222,18 +322,19 @@ function visible(p){
   if (filter === "new") return !String(p.audience).startsWith("Expert");
   if (filter === "expert") return String(p.audience).startsWith("Expert");
   if (filter === "todo") return !p.Status;
-  if (filter === "Approved") return p.Status === "Approved";
+  if (filter === "Approved") return p.Status === "Approved" || p.Status === "Approved with edits";
   return true;
 }
 
-function render(focusId){
+function render(){
+  const y = window.scrollY;
   const list = document.getElementById("list");
-  const shown = POSTS.filter(visible);
+  const shown = POSTS.filter(p => visible(p) || open[p.id]);
   list.replaceChildren(...(shown.length ? shown.map(card) : [el("p", {class:"intro", text: filter === "todo" ? "All caught up. Nothing waiting for review." : "Nothing here yet."})]));
   const n = POSTS.filter(p => p.Status).length;
   document.getElementById("count").textContent = n + " of " + POSTS.length + " reviewed";
   document.getElementById("fill").style.width = (POSTS.length ? 100 * n / POSTS.length : 0) + "%";
-  if (focusId) { const t = document.getElementById("note-" + focusId); if (t) t.focus({preventScroll:true}); }
+  window.scrollTo(0, y);
 }
 
 document.querySelectorAll(".filters button").forEach(b => b.addEventListener("click", () => {
@@ -243,7 +344,7 @@ document.querySelectorAll(".filters button").forEach(b => b.addEventListener("cl
 }));
 
 fetch(API_URL).then(r => r.json()).then(j => {
-  POSTS = j.posts || [];
+  POSTS = (j.posts || []).map(p => ({...p, edit_ig_script: p.edit_script || ""}));
   render();
 }).catch(() => {
   document.getElementById("list").replaceChildren(el("p", {class:"intro", text:"Couldn't load posts. Check your internet and refresh the page."}));
