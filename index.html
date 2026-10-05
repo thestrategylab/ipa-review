@@ -1270,7 +1270,6 @@ function startApp(){
   document.body.classList.remove("locked");
   $("login").hidden = true; $("app").hidden = false;
   document.querySelector('.nav button[data-v="team"]').hidden = !isTSL();
-  if (isTSL() && !location.hash) view = "team";
   if (isIPA() && view === "team") view = "ideas";
   whoSelect();
   render();
